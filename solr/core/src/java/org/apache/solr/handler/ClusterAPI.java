@@ -42,6 +42,7 @@ import java.util.Set;
 import org.apache.solr.api.Command;
 import org.apache.solr.api.EndPoint;
 import org.apache.solr.api.PayloadObj;
+import org.apache.solr.client.api.model.SolrJerseyResponse;
 import org.apache.solr.client.solrj.cloud.DistribStateManager;
 import org.apache.solr.client.solrj.request.beans.ClusterPropPayload;
 import org.apache.solr.client.solrj.request.beans.RateLimiterPayload;
@@ -59,6 +60,10 @@ import org.apache.solr.core.CoreContainer;
 import org.apache.solr.core.NodeRoles;
 import org.apache.solr.handler.admin.CollectionsHandler;
 import org.apache.solr.handler.admin.ConfigSetsHandler;
+import org.apache.solr.handler.admin.api.DeleteClusterProperty;
+import org.apache.solr.handler.admin.api.GetClusterProperty;
+import org.apache.solr.handler.admin.api.ListClusterProperties;
+import org.apache.solr.handler.api.V2ApiUtils;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.response.SolrQueryResponse;
 import org.apache.zookeeper.KeeperException;
@@ -251,6 +256,54 @@ public class ClusterAPI {
     final Map<String, Object> v1Params =
         Map.of(CommonParams.ACTION, CollectionAction.CLUSTERSTATUS.toLower());
     collectionsHandler.handleRequestBody(wrapParams(req, v1Params), rsp);
+  }
+
+  @EndPoint(method = GET, path = "/cluster/properties", permission = COLL_READ_PERM)
+  public void listClusterProperties(SolrQueryRequest req, SolrQueryResponse rsp) throws Exception {
+    ListClusterProperties listClusterProperties =
+        new ListClusterProperties(
+            collectionsHandler.getCoreContainer().getZkController().getZkClient());
+
+    final SolrJerseyResponse response = listClusterProperties.listClusterProperties();
+
+    // 'rsp' may be null, as when overseer commands execute CollectionAction impl's directly.
+    if (rsp != null) {
+      V2ApiUtils.squashIntoSolrResponseWithoutHeader(rsp, response);
+    }
+  }
+
+  @EndPoint(method = GET, path = "/cluster/properties/{propertyName}", permission = COLL_READ_PERM)
+  public void getClusterProperty(SolrQueryRequest req, SolrQueryResponse rsp) throws Exception {
+    GetClusterProperty getClusterProperty =
+        new GetClusterProperty(
+            collectionsHandler.getCoreContainer().getZkController().getZkClient());
+
+    final SolrJerseyResponse response =
+        getClusterProperty.getClusterProperty(req.getPathTemplateValues().get("propertyName"));
+
+    // 'rsp' may be null, as when overseer commands execute CollectionAction impl's directly.
+    if (rsp != null) {
+      V2ApiUtils.squashIntoSolrResponseWithoutHeader(rsp, response);
+    }
+  }
+
+  @EndPoint(
+      method = DELETE,
+      path = "/cluster/properties/{propertyName}",
+      permission = COLL_EDIT_PERM)
+  public void deleteClusterProperty(SolrQueryRequest req, SolrQueryResponse rsp) throws Exception {
+    DeleteClusterProperty deleteClusterProperty =
+        new DeleteClusterProperty(
+            collectionsHandler.getCoreContainer().getZkController().getZkClient());
+
+    final SolrJerseyResponse response =
+        deleteClusterProperty.deleteClusterProperty(
+            req.getPathTemplateValues().get("propertyName"));
+
+    // 'rsp' may be null, as when overseer commands execute CollectionAction impl's directly.
+    if (rsp != null) {
+      V2ApiUtils.squashIntoSolrResponseWithoutHeader(rsp, response);
+    }
   }
 
   private CoreContainer getCoreContainer() {
